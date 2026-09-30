@@ -5,6 +5,8 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { youtubeDl } from "youtube-dl-exec";
 import GuildPlayer from "./GuildPlayer.js";
+import { validateVoiceChannelAccess } from "./voiceChannelValidator.js";
+import Logger from "../../helpers/Logger.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -38,29 +40,12 @@ export default class MusicManager {
     if (channel && channel.isVoiceBased()) {
       const me = guild.members.me ?? (this.client.user?.id ? guild.members.cache.get(this.client.user.id) : null);
       if (me) {
-        const permissions = channel.permissionsFor(me);
-        if (permissions) {
-          if (!permissions.has(PermissionFlagsBits.ViewChannel)) {
-            throw new Error(`I do not have permission to view your voice channel (${channel.name}).`);
-          }
-          if (!permissions.has(PermissionFlagsBits.Connect)) {
-            throw new Error(`I do not have permission to join your voice channel (${channel.name}) (missing 'Connect' permission).`);
-          }
-          if (!permissions.has(PermissionFlagsBits.Speak)) {
-            throw new Error(`I do not have permission to speak in your voice channel (${channel.name}) (missing 'Speak' permission).`);
-          }
-
-          const botAlreadyInChannel = channel.members.has(me.id);
-          const isFull = channel.userLimit > 0 && channel.members.size >= channel.userLimit;
-          const canBypassLimit =
-            permissions.has(PermissionFlagsBits.MoveMembers) ||
-            permissions.has(PermissionFlagsBits.Administrator);
-
-          if (!botAlreadyInChannel && isFull && !canBypassLimit) {
-            throw new Error(`Cannot join ${channel.name} because it is full (${channel.members.size}/${channel.userLimit} members).`);
-          }
-        }
+        validateVoiceChannelAccess(channel, me);
+      } else {
+        Logger.warn(`Bot member could not be resolved from cache for guild ${guild.id}; skipping connect-time joinability check.`);
       }
+    } else {
+      Logger.warn(`Voice channel ${voiceChannelId} could not be resolved from cache for guild ${guild.id}; skipping connect-time joinability check.`);
     }
 
     const player = new GuildPlayer(this.client, guild, voiceChannelId, textChannelId, (destroyed) => {

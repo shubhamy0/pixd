@@ -158,13 +158,19 @@ describe("YtDlpResolver", () => {
 });
 
 describe("formatMusicError", () => {
-  it("formats aborted or state entry errors to helpful message instead of raw AbortError", () => {
+  it("formats 'The operation was aborted' to a helpful voice channel message", () => {
     expect(formatMusicError(new Error("The operation was aborted"))).toBe(
       "Connection to the voice channel timed out or was aborted. Please check that the channel is accessible and not full."
     );
     expect(formatMusicError(new Error("failed to enter state Ready"))).toBe(
       "Connection to the voice channel timed out or was aborted. Please check that the channel is accessible and not full."
     );
+  });
+
+  it("does not match generic aborted errors from http or yt-dlp", () => {
+    const result = formatMusicError(new Error("Download aborted by user"));
+    expect(result).not.toContain("voice channel");
+    expect(result).toBe("Download aborted by user");
   });
 
   it("formats known streaming / YouTube errors", () => {
