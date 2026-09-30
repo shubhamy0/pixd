@@ -1,4 +1,4 @@
-import type { Client, Guild } from "discord.js";
+import { PermissionFlagsBits, type Client, type Guild } from "discord.js";
 import { constants as fsConstants } from "node:fs";
 import { access } from "node:fs/promises";
 import { execFile } from "node:child_process";
@@ -32,6 +32,35 @@ export default class MusicManager {
         throw new Error("The bot is already playing in another voice channel.");
       }
       return existing;
+    }
+
+    const channel = guild.channels.cache.get(voiceChannelId);
+    if (channel && channel.isVoiceBased()) {
+      const me = guild.members.me ?? (this.client.user?.id ? guild.members.cache.get(this.client.user.id) : null);
+      if (me) {
+        const permissions = channel.permissionsFor(me);
+        if (permissions) {
+          if (!permissions.has(PermissionFlagsBits.ViewChannel)) {
+            throw new Error(`I do not have permission to view your voice channel (${channel.name}).`);
+          }
+          if (!permissions.has(PermissionFlagsBits.Connect)) {
+            throw new Error(`I do not have permission to join your voice channel (${channel.name}) (missing 'Connect' permission).`);
+          }
+          if (!permissions.has(PermissionFlagsBits.Speak)) {
+            throw new Error(`I do not have permission to speak in your voice channel (${channel.name}) (missing 'Speak' permission).`);
+          }
+
+          const botAlreadyInChannel = channel.members.has(me.id);
+          const isFull = channel.userLimit > 0 && channel.members.size >= channel.userLimit;
+          const canBypassLimit =
+            permissions.has(PermissionFlagsBits.MoveMembers) ||
+            permissions.has(PermissionFlagsBits.Administrator);
+
+          if (!botAlreadyInChannel && isFull && !canBypassLimit) {
+            throw new Error(`Cannot join ${channel.name} because it is full (${channel.members.size}/${channel.userLimit} members).`);
+          }
+        }
+      }
     }
 
     const player = new GuildPlayer(this.client, guild, voiceChannelId, textChannelId, (destroyed) => {

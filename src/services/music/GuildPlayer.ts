@@ -90,7 +90,13 @@ export default class GuildPlayer {
   }
 
   async ready(): Promise<void> {
-    await entersState(this.connection, VoiceConnectionStatus.Ready, 20_000);
+    try {
+      await entersState(this.connection, VoiceConnectionStatus.Ready, 20_000);
+    } catch {
+      if (this.connection.state.status !== VoiceConnectionStatus.Ready) {
+        throw new Error("Failed to connect to the voice channel in time (connection timed out).");
+      }
+    }
   }
 
   enqueue(tracks: MusicTrack[]): void {

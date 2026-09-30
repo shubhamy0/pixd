@@ -37,7 +37,7 @@ export default new HybridCommand({
     const query = context.options.getString("query", true)!;
     const sourceChoice = context.options.getString("source") as MusicSource | null;
 
-    const voiceChannelId = requireVoiceChannel(context);
+    const voiceChannelId = requireVoiceChannel(context, { checkJoinable: true });
     const result = await resolver.resolve(query, context.user.id, sourceChoice ?? "auto");
     const player = await client.music.connect(context.guild!, voiceChannelId, context.channel!.id);
     const wasPlaying = Boolean(player.current) && player.audioPlayer.state.status !== AudioPlayerStatus.Idle;
