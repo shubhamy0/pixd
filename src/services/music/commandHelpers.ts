@@ -1,10 +1,35 @@
+import { PermissionFlagsBits } from "discord.js";
 import type CommandContext from "../../helpers/CommandContext.js";
 import type GuildPlayer from "./GuildPlayer.js";
+import { validateVoiceChannelAccess } from "./voiceChannelValidator.js";
+import Logger from "../../helpers/Logger.js";
 
-export function requireVoiceChannel(context: CommandContext): string {
+export function assertVoiceChannelJoinable(context: CommandContext, channelId: string): void {
+  const guild = context.guild;
+  if (!guild) return;
+
+  const channel = context.member?.voice?.channel ?? guild.channels.cache.get(channelId);
+  if (!channel || !channel.isVoiceBased()) {
+    Logger.warn(`Voice channel ${channelId} could not be resolved from cache for guild ${guild.id}; skipping pre-flight joinability check.`);
+    return;
+  }
+
+  const me = guild.members.me ?? (context.client.user?.id ? guild.members.cache.get(context.client.user.id) : null);
+  if (!me) {
+    Logger.warn(`Bot member could not be resolved from cache for guild ${guild.id}; skipping pre-flight joinability check.`);
+    return;
+  }
+
+  validateVoiceChannelAccess(channel, me);
+}
+
+export function requireVoiceChannel(context: CommandContext, options?: { checkJoinable?: boolean }): string {
   if (!context.guild || !context.member) throw new Error("This command can only be used in a server.");
   const channelId = context.member.voice.channelId;
   if (!channelId) throw new Error("Join a voice channel before using this command.");
+  if (options?.checkJoinable) {
+    assertVoiceChannelJoinable(context, channelId);
+  }
   return channelId;
 }
 
@@ -47,6 +72,9 @@ export function formatMusicError(error: unknown): string {
   }
   if (/No playable tracks/i.test(raw)) {
     return "No playable tracks were found.";
+  }
+  if (/the operation was aborted/i.test(raw) || /failed to enter state/i.test(raw)) {
+    return "Connection to the voice channel timed out or was aborted. Please check that the channel is accessible and not full.";
   }
 
   // Strip CLI prefixes, stderr stack traces, and URLs to prevent Discord embed cards

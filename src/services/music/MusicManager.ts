@@ -1,10 +1,12 @@
-import type { Client, Guild } from "discord.js";
+import { PermissionFlagsBits, type Client, type Guild } from "discord.js";
 import { constants as fsConstants } from "node:fs";
 import { access } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { youtubeDl } from "youtube-dl-exec";
 import GuildPlayer from "./GuildPlayer.js";
+import { validateVoiceChannelAccess } from "./voiceChannelValidator.js";
+import Logger from "../../helpers/Logger.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -32,6 +34,18 @@ export default class MusicManager {
         throw new Error("The bot is already playing in another voice channel.");
       }
       return existing;
+    }
+
+    const channel = guild.channels.cache.get(voiceChannelId);
+    if (channel && channel.isVoiceBased()) {
+      const me = guild.members.me ?? (this.client.user?.id ? guild.members.cache.get(this.client.user.id) : null);
+      if (me) {
+        validateVoiceChannelAccess(channel, me);
+      } else {
+        Logger.warn(`Bot member could not be resolved from cache for guild ${guild.id}; skipping connect-time joinability check.`);
+      }
+    } else {
+      Logger.warn(`Voice channel ${voiceChannelId} could not be resolved from cache for guild ${guild.id}; skipping connect-time joinability check.`);
     }
 
     const player = new GuildPlayer(this.client, guild, voiceChannelId, textChannelId, (destroyed) => {
